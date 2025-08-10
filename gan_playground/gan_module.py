@@ -45,6 +45,20 @@ class GANPlay(pl.LightningModule):
     def forward(self, z):
         """Dummy forward method for Lightning compatibility"""
         return self.G(z)
+    
+    def setup(self, stage=None):
+        """Setup method to move models to correct device"""
+        if torch.backends.mps.is_available():
+            device = torch.device('mps')
+            self.G = self.G.to(device)
+            self.D = self.D.to(device)
+            if hasattr(self, 'fixed_z'):
+                self.fixed_z = self.fixed_z.to(device)
+            if hasattr(self, 'fixed_labels'):
+                self.fixed_labels = self.fixed_labels.to(device)
+            print(f"🚀 Models moved to MPS device: {device}")
+        else:
+            print("💻 Using CPU device")
 
     # --------- Optimizers ----------
     def configure_optimizers(self):

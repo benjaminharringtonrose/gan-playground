@@ -1,5 +1,6 @@
 # Main GAN Playground Script
 import argparse
+import torch
 import pytorch_lightning as pl
 
 from config import EPOCHS, BATCH_SIZE
@@ -18,7 +19,21 @@ def main():
     loader = make_loader(args.batch_size)
     model = GANPlay(arch=args.arch, gp_lambda=args.gp_lambda, n_critic=args.n_critic)
 
-    trainer = pl.Trainer(max_epochs=args.epochs, accelerator="auto", devices="auto", log_every_n_steps=50)
+    # Configure trainer with automatic device detection
+    trainer_kwargs = {
+        "max_epochs": args.epochs,
+        "log_every_n_steps": 50,
+        "accelerator": "auto",
+        "devices": "auto"
+    }
+    
+    # Check what devices are available
+    if torch.backends.mps.is_available():
+        print("🚀 Apple M4 GPU (MPS) detected - PyTorch Lightning will auto-detect")
+    else:
+        print("💻 Using CPU")
+    
+    trainer = pl.Trainer(**trainer_kwargs)
     trainer.fit(model, loader)
 
 if __name__ == "__main__":
