@@ -177,11 +177,6 @@ data/
 *.pth
 *.pt
 
-# Generated samples
-samples/
-*.png
-*.jpg
-*.jpeg
 
 # OS generated files
 .DS_Store
