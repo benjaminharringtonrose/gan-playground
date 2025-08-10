@@ -52,36 +52,36 @@ Run the GAN training with default settings (DCGAN on MNIST):
 
 ```bash
 # Using virtual environment Python directly
-./venv/bin/python src/gan_playground.py
+./venv/bin/python src/main.py
 
 # Or activate virtual environment first
 source venv/bin/activate
-python src/gan_playground.py
+python src/main.py
 ```
 
 ### Available Architectures
 
 ```bash
 # Classic GAN (MLP-based)
-./venv/bin/python src/gan_playground.py --arch classic
+./venv/bin/python src/main.py --arch classic
 
 # DCGAN (Deep Convolutional GAN) - Default
-./venv/bin/python src/gan_playground.py --arch dcgan
+./venv/bin/python src/main.py --arch dcgan
 
 # WGAN-GP (Wasserstein GAN with Gradient Penalty)
-./venv/bin/python src/gan_playground.py --arch wgan-gp
+./venv/bin/python src/main.py --arch wgan-gp
 
 # LSGAN (Least Squares GAN)
-./venv/bin/python src/gan_playground.py --arch lsgan
+./venv/bin/python src/main.py --arch lsgan
 
 # Conditional GAN
-./venv/bin/python src/gan_playground.py --arch cgan
+./venv/bin/python src/main.py --arch cgan
 ```
 
 ### Command Line Options
 
 ```bash
-./venv/bin/python src/gan_playground.py [OPTIONS]
+./venv/bin/python src/main.py [OPTIONS]
 
 Options:
   --arch {classic,dcgan,wgan-gp,lsgan,cgan}
@@ -96,16 +96,16 @@ Options:
 
 ```bash
 # Quick test run (1 epoch)
-./venv/bin/python src/gan_playground.py --arch classic --epochs 1
+./venv/bin/python src/main.py --arch classic --epochs 1
 
 # Train WGAN-GP with custom parameters
-./venv/bin/python src/gan_playground.py --arch wgan-gp --epochs 50 --n_critic 5 --gp_lambda 15.0
+./venv/bin/python src/main.py --arch wgan-gp --epochs 50 --n_critic 5 --gp_lambda 15.0
 
 # Train with smaller batch size for memory-constrained systems
-./venv/bin/python src/gan_playground.py --arch dcgan --batch_size 64
+./venv/bin/python src/main.py --arch dcgan --batch_size 64
 
 # Train conditional GAN for longer
-./venv/bin/python src/gan_playground.py --arch cgan --epochs 100
+./venv/bin/python src/main.py --arch cgan --epochs 100
 ```
 
 ## Output
@@ -119,7 +119,12 @@ Options:
 ```
 gan-playground/
 ├── src/
-│   └── gan_playground.py    # Main GAN implementation
+│   ├── __init__.py         # Package initialization
+│   ├── config.py           # Configuration constants and hyperparameters
+│   ├── models.py           # GAN model architectures (Generator/Discriminator)
+│   ├── data.py             # Data loading and preprocessing
+│   ├── gan_module.py       # Main GAN Lightning module with training logic
+│   └── main.py             # Main script entry point
 ├── requirements.txt         # Python dependencies
 ├── activate.sh             # Virtual environment activation script
 ├── samples/                # Generated images (created automatically)
@@ -152,7 +157,7 @@ If you run out of memory:
 
 ```bash
 # Reduce batch size
-./venv/bin/python src/gan_playground.py --batch_size 32
+./venv/bin/python src/main.py --batch_size 32
 ```
 
 ## Dependencies

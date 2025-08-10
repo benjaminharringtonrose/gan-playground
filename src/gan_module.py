@@ -1,97 +1,14 @@
-# gan_playground.py
-import os, torch, torch.nn as nn, torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, utils as vutils
+# Main GAN Lightning Module
+import os
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
+from torchvision import utils as vutils
 
-# -------------------- Config --------------------
-IMG_SIZE   = 64
-IMG_CH     = 1          # MNIST
-Z_DIM      = 100
-G_FEAT     = 64
-D_FEAT     = 64
-LR         = 2e-4
-BETAS_BCE  = (0.5, 0.999)    # classic/DCGAN/LSGAN
-BETAS_WGAN = (0.0, 0.9)      # WGAN-GP common choice
-BATCH_SIZE = 128
-EPOCHS     = 20
-NUM_CLASSES= 10
-SAMPLES_DIR= "samples"; os.makedirs(SAMPLES_DIR, exist_ok=True)
+from config import Z_DIM, IMG_CH, IMG_SIZE, LR, BETAS_BCE, BETAS_WGAN, NUM_CLASSES, SAMPLES_DIR
+from models import DCGAN_G, DCGAN_D, MLP_G, MLP_D, onehot
 
-# -------------------- Blocks --------------------
-class DCGAN_G(nn.Module):
-    def __init__(self, in_ch=Z_DIM, g=G_FEAT, out_ch=IMG_CH):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.ConvTranspose2d(in_ch, g*8, 4, 1, 0, bias=False),
-            nn.BatchNorm2d(g*8), nn.ReLU(True),
-            nn.ConvTranspose2d(g*8, g*4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(g*4), nn.ReLU(True),
-            nn.ConvTranspose2d(g*4, g*2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(g*2), nn.ReLU(True),
-            nn.ConvTranspose2d(g*2, g,   4, 2, 1, bias=False),
-            nn.BatchNorm2d(g),   nn.ReLU(True),
-            nn.ConvTranspose2d(g, out_ch, 4, 2, 1, bias=False),
-            nn.Tanh()
-        )
-    def forward(self, z): return self.net(z)
-
-class DCGAN_D(nn.Module):
-    def __init__(self, in_ch=IMG_CH, d=D_FEAT):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(in_ch, d, 4, 2, 1, bias=False), nn.LeakyReLU(0.2, True),
-            nn.Conv2d(d, d*2, 4, 2, 1, bias=False), nn.BatchNorm2d(d*2), nn.LeakyReLU(0.2, True),
-            nn.Conv2d(d*2, d*4, 4, 2, 1, bias=False), nn.BatchNorm2d(d*4), nn.LeakyReLU(0.2, True),
-            nn.Conv2d(d*4, d*8, 4, 2, 1, bias=False), nn.BatchNorm2d(d*8), nn.LeakyReLU(0.2, True),
-            nn.Conv2d(d*8, 1, 4, 1, 0, bias=False)
-        )
-    def forward(self, x): return self.net(x).view(-1)  # logits / critic score
-
-class MLP_G(nn.Module):
-    def __init__(self, z_dim=Z_DIM, img_size=IMG_SIZE, img_ch=IMG_CH):
-        super().__init__()
-        self.img_size = img_size; self.img_ch = img_ch
-        self.net = nn.Sequential(
-            nn.Linear(z_dim, 256), nn.ReLU(True),
-            nn.Linear(256, 512), nn.ReLU(True),
-            nn.Linear(512, 1024), nn.ReLU(True),
-            nn.Linear(1024, img_size*img_size*img_ch), nn.Tanh()
-        )
-    def forward(self, z):
-        x = self.net(z)
-        return x.view(-1, self.img_ch, self.img_size, self.img_size)
-
-class MLP_D(nn.Module):
-    def __init__(self, img_size=IMG_SIZE, img_ch=IMG_CH):
-        super().__init__()
-        self.img_size = img_size; self.img_ch = img_ch
-        self.net = nn.Sequential(
-            nn.Linear(img_size*img_size*img_ch, 512), nn.LeakyReLU(0.2, True),
-            nn.Linear(512, 256), nn.LeakyReLU(0.2, True),
-            nn.Linear(256, 1)
-        )
-    def forward(self, x):
-        x = x.view(-1, self.img_size*self.img_size*self.img_ch)
-        return self.net(x).view(-1)
-
-# ----- cGAN helpers (DCGAN backbone) -----
-def onehot(labels, num_classes=NUM_CLASSES):
-    return F.one_hot(labels, num_classes=num_classes).float()
-
-def label_to_zch(labels):       # (B,num_classes,1,1) for G input
-    oh = onehot(labels).unsqueeze(-1).unsqueeze(-1)
-    return oh
-
-def label_to_img_channel(labels, H, W):  # (B,1,H,W) label map for D input
-    return onehot(labels).argmax(dim=1, keepdim=True).float().fill_(0.0).add(0.0)  # placeholder
-
-# Better: use one-hot as channels collapsed to a single constant plane.
-def label_plane(labels, H, W):
-    # Single-channel constant map holding class index / 9.0 (simple conditioning)
-    return (labels.float()/9.0).view(-1,1,1,1).expand(-1,1,H,W)
-
-# -------------------- Lightning --------------------
 class GANPlay(pl.LightningModule):
     def __init__(self, arch="dcgan", z_dim=Z_DIM, img_ch=IMG_CH, img_size=IMG_SIZE,
                  gp_lambda=10.0, n_critic=5):
@@ -129,7 +46,7 @@ class GANPlay(pl.LightningModule):
         """Dummy forward method for Lightning compatibility"""
         return self.G(z)
 
-    # --------- Optims ----------
+    # --------- Optimizers ----------
     def configure_optimizers(self):
         betas = BETAS_WGAN if self.is_wgan else BETAS_BCE
         opt_D = torch.optim.Adam(self.D.parameters(), lr=LR, betas=betas)
@@ -271,30 +188,3 @@ class GANPlay(pl.LightningModule):
             out = os.path.join(SAMPLES_DIR, f"{self.arch}_epoch_{self.current_epoch+1:03d}.png")
             vutils.save_image(grid, out)
         self.print(f"Saved {out}")
-
-# -------------------- Data --------------------
-def make_loader(batch_size=BATCH_SIZE):
-    tfm = transforms.Compose([
-        transforms.Resize(IMG_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5]*IMG_CH, [0.5]*IMG_CH),
-    ])
-    ds = datasets.MNIST(root="./data", train=True, download=True, transform=tfm)
-    return DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-
-# -------------------- Main --------------------
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--arch", choices=["classic","dcgan","wgan-gp","lsgan","cgan"], default="dcgan")
-    parser.add_argument("--epochs", type=int, default=EPOCHS)
-    parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
-    parser.add_argument("--n_critic", type=int, default=5, help="for wgan-gp")
-    parser.add_argument("--gp_lambda", type=float, default=10.0, help="for wgan-gp")
-    args = parser.parse_args()
-
-    loader = make_loader(args.batch_size)
-    model = GANPlay(arch=args.arch, gp_lambda=args.gp_lambda, n_critic=args.n_critic)
-
-    trainer = pl.Trainer(max_epochs=args.epochs, accelerator="auto", devices="auto", log_every_n_steps=50)
-    trainer.fit(model, loader)
